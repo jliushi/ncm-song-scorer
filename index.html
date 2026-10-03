@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ncm-scorer · 网易云新歌爆款潜力榜</title>
+<meta name="description" content="每日采集的新歌研究榜，提供评分构成、发行筛选、歌曲搜索和官方试听入口。">
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0b0d;
+    --card: #141416;
+    --ink: #f4f4f5;
+    --muted: #8d8d93;
+    --line: #26262b;
+    --accent: #ec4141;
+    --gold: #f0c36a;
+    --vip: #f0a14a;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background:
+      radial-gradient(900px 420px at 10% -10%, #3a121480, transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .wrap {
+    width: min(980px, calc(100% - 28px));
+    margin: 0 auto;
+    padding: 36px 0 80px;
+  }
+  .hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .kicker {
+    margin: 0 0 8px;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .16em;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    font-weight: 780;
+    letter-spacing: -.04em;
+    line-height: 1.1;
+  }
+  .meta {
+    margin: 0;
+    max-width: 280px;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: right;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 14px 20px;
+    flex-wrap: wrap;
+    margin: 18px 0 16px;
+  }
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .filter-label { color: var(--muted); font-size: 12px; }
+  .filters {
+    display: flex;
+    padding: 3px;
+    border-radius: 999px;
+    background: #1c1c20;
+  }
+  .filters button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .filters button.on {
+    background: var(--accent);
+    color: #fff;
+  }
+  #player-box {
+    position: sticky;
+    top: 8px;
+    z-index: 5;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #1a1a1e;
+  }
+  #player-box audio { width: 100%; display: block; }
+  .play-title { font-weight: 700; margin-bottom: 8px; }
+  .play-hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .board {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .board-head, .row {
+    display: grid;
+    grid-template-columns: 48px 64px minmax(0, 1.5fr) minmax(0, .9fr) 104px 44px;
+    gap: 10px;
+    align-items: center;
+    padding: 13px 16px;
+  }
+  .board-head {
+    color: #6f6f75;
+    font-size: 12px;
+    letter-spacing: .04em;
+    border-bottom: 1px solid var(--line);
+    background: #18181b;
+  }
+  .song { border-bottom: 1px solid var(--line); cursor: pointer; }
+  .song:last-child { border-bottom: 0; }
+  .song:hover { background: #1c1c20; }
+  .song.hidden { display: none; }
+  .c-rank, .c-score { font-variant-numeric: tabular-nums; }
+  .c-rank {
+    color: #6f6f75;
+    font-size: 18px;
+    font-weight: 760;
+  }
+  .c-score { font-size: 18px; font-weight: 780; }
+  .top3 .c-rank { color: var(--accent); }
+  .top3 .c-score { color: var(--gold); }
+  .name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+  }
+  .name a { color: inherit; text-decoration: none; }
+  .name a:hover { color: var(--accent); }
+  .artists, .sub { color: var(--muted); font-size: 13px; }
+  .sub { display: none; margin-top: 4px; }
+  .c-date { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 1px 6px;
+    background: #2a2a30;
+    color: #c8c8ce;
+  }
+  .badge.vip { background: #3a2612; color: var(--vip); }
+  button.play {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  button.play:hover { filter: brightness(1.12); }
+  .detail { padding: 0 16px 14px; }
+  .parts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .parts span {
+    background: #1c1c20;
+    border-radius: 8px;
+    padding: 5px 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .parts b { color: var(--ink); margin-left: 6px; font-variant-numeric: tabular-nums; }
+  .foot {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 22px;
+    max-width: 68ch;
+  }
+  a { color: #ff7a7a; }
+  button, input { font: inherit; }
+  button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+  .search { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .search input { flex: 1 1 220px; min-width: 0; max-width: 440px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+  #result-count, .data-age { font-size: 12px; color: var(--muted); }
+  #freshness, #empty-state { padding: 14px; color: var(--gold); }
+  .details-toggle, .close-player, .retry-player { border: 1px solid var(--line); background: #252529; color: var(--ink); border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+  .details-toggle { font-size: 11px; margin-top: 4px; }
+  .player-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  @media (max-width: 760px) {
+    .wrap { width: min(100% - 18px, 980px); padding-top: 20px; }
+    .hero { display: block; }
+    .meta { max-width: none; text-align: left; margin-top: 10px; }
+    .board-head, .c-score, .c-artists, .c-date { display: none; }
+    .row {
+      grid-template-columns: 36px minmax(0, 1fr) 38px;
+      padding: 12px;
+    }
+    .sub { display: block; }
+    .detail { padding-left: 12px; padding-right: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero">
+  <div>
+  <p class="kicker">ncm-scorer</p>
+  <h1>新歌爆款潜力榜</h1>
+  </div>
+  <p class="meta">采集更新于 2026-10-03 06:49 UTC · 启发式 heuristic-v2（Live 降权 + 歌手上榜热） · 数据来自网易云音乐新歌榜及歌手近作（近 30 天发行），每日自动采集</p>
+</header>
+<p id="freshness" role="status" hidden>数据已超过 48 小时未更新，当前展示上次采集结果。</p>
+<div class="toolbar" id="filters">
+  <div class="filter-group" data-group="time">
+    <span class="filter-label">发行</span>
+    <div class="filters">
+      <button type="button" data-time="month" class="on" aria-pressed="true">近 30 天</button>
+      <button type="button" data-time="week" aria-pressed="false">近 7 天</button>
+    </div>
+  </div>
+  <div class="filter-group" data-group="live">
+    <span class="filter-label">类型</span>
+    <div class="filters">
+      <button type="button" data-live="all" class="on" aria-pressed="true">含 Live</button>
+      <button type="button" data-live="studio" aria-pressed="false">不含 Live</button>
+    </div>
+  </div>
+</div>
+<div class="search"><label for="song-search">搜索歌曲 / 歌手</label><input id="song-search" type="search" placeholder="输入歌名或歌手" autocomplete="off"><span id="result-count" role="status"></span></div>
+<div id="player-box" hidden>
+  <div class="play-title"></div><audio controls preload="metadata"></audio>
+  <div class="play-hint" role="status"></div>
+  <div class="player-actions"><button type="button" class="retry-player">重试</button><a class="official" target="_blank" rel="noopener noreferrer">前往网易云</a><button type="button" class="close-player">关闭试听</button></div>
+</div>
+<div class="board">
+  <div class="board-head">
+    <span>#</span><span>分数</span><span>歌曲</span><span>歌手</span><span>发布</span><span></span>
+  </div>
+  <article class="song top3" data-live="0" data-age="25" data-published="1788796800000" data-search="skyfall 范丞丞"><div class="row"><div class="c-rank">1</div><div class="c-score">91.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431126104" target="_blank" rel="noopener">SKYFALL</a></div><div class="sub">范丞丞 · 91.0 · 发布 2026-09-08</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431126104">分数明细</button></div><div class="c-artists artists">范丞丞</div><div class="c-date">2026-09-08</div><div class="c-play"><button class="play" data-id="3431126104" data-fee="8" data-name="SKYFALL" aria-label="播放 SKYFALL" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431126104" hidden><div class="parts"><span>讨论密度<b>36.0</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>14.0</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>9.5</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song top3" data-live="0" data-age="20" data-published="1789228800000" data-search="两难pt.2 加木"><div class="row"><div class="c-rank">2</div><div class="c-score">86.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433437362" target="_blank" rel="noopener">两难pt.2</a></div><div class="sub">加木 · 86.8 · 发布 2026-09-13</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433437362">分数明细</button></div><div class="c-artists artists">加木</div><div class="c-date">2026-09-13</div><div class="c-play"><button class="play" data-id="3433437362" data-fee="8" data-name="两难pt.2" aria-label="播放 两难pt.2" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433437362" hidden><div class="parts"><span>讨论密度<b>34.3</b></span><span>平台热度<b>31.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>12.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song top3" data-live="0" data-age="25" data-published="1788796800000" data-search="go girl 范丞丞"><div class="row"><div class="c-rank">3</div><div class="c-score">76.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431126107" target="_blank" rel="noopener">GO GIRL</a></div><div class="sub">范丞丞 · 76.6 · 发布 2026-09-08</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431126107">分数明细</button></div><div class="c-artists artists">范丞丞</div><div class="c-date">2026-09-08</div><div class="c-play"><button class="play" data-id="3431126107" data-fee="8" data-name="GO GIRL" aria-label="播放 GO GIRL" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431126107" hidden><div class="parts"><span>讨论密度<b>28.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>5.9</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>11.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="21" data-published="1789142400000" data-search="留不住的夏天 黄霄雲"><div class="row"><div class="c-rank">4</div><div class="c-score">75.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433461789" target="_blank" rel="noopener">留不住的夏天</a></div><div class="sub">黄霄雲 · 75.6 · 发布 2026-09-12</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433461789">分数明细</button></div><div class="c-artists artists">黄霄雲</div><div class="c-date">2026-09-12</div><div class="c-play"><button class="play" data-id="3433461789" data-fee="8" data-name="留不住的夏天" aria-label="播放 留不住的夏天" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433461789" hidden><div class="parts"><span>讨论密度<b>20.8</b></span><span>平台热度<b>31.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>11.8</b></span><span>上榜热<b>12.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="18" data-published="1789401600000" data-search="make it make sense 范丞丞"><div class="row"><div class="c-rank">5</div><div class="c-score">74.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431125407" target="_blank" rel="noopener">MAKE IT MAKE SENSE</a></div><div class="sub">范丞丞 · 74.1 · 发布 2026-09-15</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431125407">分数明细</button></div><div class="c-artists artists">范丞丞</div><div class="c-date">2026-09-15</div><div class="c-play"><button class="play" data-id="3431125407" data-fee="8" data-name="MAKE IT MAKE SENSE" aria-label="播放 MAKE IT MAKE SENSE" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431125407" hidden><div class="parts"><span>讨论密度<b>26.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>4.8</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>11.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="25" data-published="1788796800000" data-search="tttm 范丞丞"><div class="row"><div class="c-rank">6</div><div class="c-score">73.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431125409" target="_blank" rel="noopener">TTTM</a></div><div class="sub">范丞丞 · 73.3 · 发布 2026-09-08</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431125409">分数明细</button></div><div class="c-artists artists">范丞丞</div><div class="c-date">2026-09-08</div><div class="c-play"><button class="play" data-id="3431125409" data-fee="8" data-name="TTTM" aria-label="播放 TTTM" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431125409" hidden><div class="parts"><span>讨论密度<b>25.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>4.9</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>11.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="25" data-published="1788796800000" data-search="chances 范丞丞"><div class="row"><div class="c-rank">7</div><div class="c-score">73.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431125404" target="_blank" rel="noopener">CHANCES</a></div><div class="sub">范丞丞 · 73.1 · 发布 2026-09-08</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431125404">分数明细</button></div><div class="c-artists artists">范丞丞</div><div class="c-date">2026-09-08</div><div class="c-play"><button class="play" data-id="3431125404" data-fee="8" data-name="CHANCES" aria-label="播放 CHANCES" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431125404" hidden><div class="parts"><span>讨论密度<b>25.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>4.8</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>11.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="25" data-published="1788796800000" data-search="heard of us 范丞丞"><div class="row"><div class="c-rank">8</div><div class="c-score">73.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431126113" target="_blank" rel="noopener">HEARD OF US</a></div><div class="sub">范丞丞 · 73.0 · 发布 2026-09-08</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431126113">分数明细</button></div><div class="c-artists artists">范丞丞</div><div class="c-date">2026-09-08</div><div class="c-play"><button class="play" data-id="3431126113" data-fee="8" data-name="HEARD OF US" aria-label="播放 HEARD OF US" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431126113" hidden><div class="parts"><span>讨论密度<b>25.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>5.0</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>11.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="25" data-published="1788796800000" data-search="error 范丞丞"><div class="row"><div class="c-rank">9</div><div class="c-score">72.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431125399" target="_blank" rel="noopener">ERROR</a></div><div class="sub">范丞丞 · 72.8 · 发布 2026-09-08</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431125399">分数明细</button></div><div class="c-artists artists">范丞丞</div><div class="c-date">2026-09-08</div><div class="c-play"><button class="play" data-id="3431125399" data-fee="8" data-name="ERROR" aria-label="播放 ERROR" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431125399" hidden><div class="parts"><span>讨论密度<b>25.2</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>4.9</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>11.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="23" data-published="1788969600000" data-search="dear my crazy soulmate iu"><div class="row"><div class="c-rank">10</div><div class="c-score">69.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431697108" target="_blank" rel="noopener">Dear my crazy soulmate</a><span class="badge vip">VIP</span></div><div class="sub">IU · 69.7 · 发布 2026-09-10</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431697108">分数明细</button></div><div class="c-artists artists">IU</div><div class="c-date">2026-09-10</div><div class="c-play"><button class="play" data-id="3431697108" data-fee="1" data-name="Dear my crazy soulmate" aria-label="播放 Dear my crazy soulmate" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431697108" hidden><div class="parts"><span>讨论密度<b>21.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>4.2</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>10.3</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="23" data-published="1788969600000" data-search="이 별로부터 iu"><div class="row"><div class="c-rank">11</div><div class="c-score">66.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431697106" target="_blank" rel="noopener">이 별로부터</a><span class="badge vip">VIP</span></div><div class="sub">IU · 66.1 · 发布 2026-09-10</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431697106">分数明细</button></div><div class="c-artists artists">IU</div><div class="c-date">2026-09-10</div><div class="c-play"><button class="play" data-id="3431697106" data-fee="1" data-name="이 별로부터" aria-label="播放 이 별로부터" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431697106" hidden><div class="parts"><span>讨论密度<b>19.9</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>1.3</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>10.8</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="26" data-published="1788710400000" data-search="梦影 黄霄雲"><div class="row"><div class="c-rank">12</div><div class="c-score">61.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3426677739" target="_blank" rel="noopener">梦影</a></div><div class="sub">黄霄雲 · 61.7 · 发布 2026-09-07</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3426677739">分数明细</button></div><div class="c-artists artists">黄霄雲</div><div class="c-date">2026-09-07</div><div class="c-play"><button class="play" data-id="3426677739" data-fee="8" data-name="梦影" aria-label="播放 梦影" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3426677739" hidden><div class="parts"><span>讨论密度<b>15.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.3</b></span><span>歌手资历<b>11.8</b></span><span>上榜热<b>12.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:47 UTC</p></div></article>
+<article class="song" data-live="0" data-age="27" data-published="1788624000000" data-search="凡常恩典 塞壬唱片-msr/动点"><div class="row"><div class="c-rank">13</div><div class="c-score">60.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3423857646" target="_blank" rel="noopener">凡常恩典</a></div><div class="sub">塞壬唱片-MSR/动点 · 60.0 · 发布 2026-09-06</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3423857646">分数明细</button></div><div class="c-artists artists">塞壬唱片-MSR/动点</div><div class="c-date">2026-09-06</div><div class="c-play"><button class="play" data-id="3423857646" data-fee="8" data-name="凡常恩典" aria-label="播放 凡常恩典" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3423857646" hidden><div class="parts"><span>讨论密度<b>15.0</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.5</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>10.5</b></span></div><p class="data-age">本曲采集：2026-10-03 06:46 UTC</p></div></article>
+<article class="song" data-live="0" data-age="22" data-published="1789056000000" data-search="小牌大耍 billionhappy/akemen"><div class="row"><div class="c-rank">14</div><div class="c-score">57.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429971646" target="_blank" rel="noopener">小牌大耍</a></div><div class="sub">Billionhappy/Akemen · 57.3 · 发布 2026-09-11</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429971646">分数明细</button></div><div class="c-artists artists">Billionhappy/Akemen</div><div class="c-date">2026-09-11</div><div class="c-play"><button class="play" data-id="3429971646" data-fee="8" data-name="小牌大耍" aria-label="播放 小牌大耍" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429971646" hidden><div class="parts"><span>讨论密度<b>19.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>6.1</b></span><span>歌手资历<b>9.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="23" data-published="1788969600000" data-search="写给讨厌我的人 kafe.hu胡懿/王以太"><div class="row"><div class="c-rank">15</div><div class="c-score">57.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433459957" target="_blank" rel="noopener">写给讨厌我的人</a></div><div class="sub">KAFE.HU胡懿/王以太 · 57.0 · 发布 2026-09-10</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433459957">分数明细</button></div><div class="c-artists artists">KAFE.HU胡懿/王以太</div><div class="c-date">2026-09-10</div><div class="c-play"><button class="play" data-id="3433459957" data-fee="8" data-name="写给讨厌我的人" aria-label="播放 写给讨厌我的人" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433459957" hidden><div class="parts"><span>讨论密度<b>16.3</b></span><span>平台热度<b>31.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>9.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="26" data-published="1788710400000" data-search="明天见 世界之外"><div class="row"><div class="c-rank">16</div><div class="c-score">56.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429128621" target="_blank" rel="noopener">明天见</a></div><div class="sub">世界之外 · 56.7 · 发布 2026-09-07</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429128621">分数明细</button></div><div class="c-artists artists">世界之外</div><div class="c-date">2026-09-07</div><div class="c-play"><button class="play" data-id="3429128621" data-fee="8" data-name="明天见" aria-label="播放 明天见" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429128621" hidden><div class="parts"><span>讨论密度<b>24.9</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.1</b></span><span>歌手资历<b>9.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:47 UTC</p></div></article>
+<article class="song" data-live="0" data-age="23" data-published="1788969600000" data-search="pillow fight tinashe"><div class="row"><div class="c-rank">17</div><div class="c-score">56.4</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433621509" target="_blank" rel="noopener">Pillow Fight</a></div><div class="sub">Tinashe · 56.4 · 发布 2026-09-10</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433621509">分数明细</button></div><div class="c-artists artists">Tinashe</div><div class="c-date">2026-09-10</div><div class="c-play"><button class="play" data-id="3433621509" data-fee="8" data-name="Pillow Fight" aria-label="播放 Pillow Fight" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433621509" hidden><div class="parts"><span>讨论密度<b>13.4</b></span><span>平台热度<b>31.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="15" data-published="1789660800000" data-search="我们不散 周深"><div class="row"><div class="c-rank">18</div><div class="c-score">56.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3430390693" target="_blank" rel="noopener">我们不散</a></div><div class="sub">周深 · 56.1 · 发布 2026-09-18</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3430390693">分数明细</button></div><div class="c-artists artists">周深</div><div class="c-date">2026-09-18</div><div class="c-play"><button class="play" data-id="3430390693" data-fee="8" data-name="我们不散" aria-label="播放 我们不散" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3430390693" hidden><div class="parts"><span>讨论密度<b>15.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>6.8</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="cold alyway"><div class="row"><div class="c-rank">19</div><div class="c-score">54.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429770305" target="_blank" rel="noopener">Cold</a></div><div class="sub">Alyway · 54.3 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429770305">分数明细</button></div><div class="c-artists artists">Alyway</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429770305" data-fee="8" data-name="Cold" aria-label="播放 Cold" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429770305" hidden><div class="parts"><span>讨论密度<b>13.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.4</b></span><span>歌手资历<b>7.7</b></span><span>上榜热<b>10.8</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="几面 管栎"><div class="row"><div class="c-rank">20</div><div class="c-score">53.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3424286953" target="_blank" rel="noopener">几面</a></div><div class="sub">管栎 · 53.6 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3424286953">分数明细</button></div><div class="c-artists artists">管栎</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3424286953" data-fee="8" data-name="几面" aria-label="播放 几面" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3424286953" hidden><div class="parts"><span>讨论密度<b>23.5</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.1</b></span><span>歌手资历<b>8.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:46 UTC</p></div></article>
+<article class="song" data-live="0" data-age="27" data-published="1788602400000" data-search="淑女的品格 洛天依official/阿肆"><div class="row"><div class="c-rank">21</div><div class="c-score">53.5</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3430462375" target="_blank" rel="noopener">淑女的品格</a></div><div class="sub">洛天依Official/阿肆 · 53.5 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3430462375">分数明细</button></div><div class="c-artists artists">洛天依Official/阿肆</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3430462375" data-fee="8" data-name="淑女的品格" aria-label="播放 淑女的品格" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3430462375" hidden><div class="parts"><span>讨论密度<b>11.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>8.4</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="24" data-published="1788883200000" data-search="rip out your eyes marino"><div class="row"><div class="c-rank">22</div><div class="c-score">52.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429984635" target="_blank" rel="noopener">Rip Out Your Eyes</a></div><div class="sub">Marino · 52.6 · 发布 2026-09-09</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429984635">分数明细</button></div><div class="c-artists artists">Marino</div><div class="c-date">2026-09-09</div><div class="c-play"><button class="play" data-id="3429984635" data-fee="8" data-name="Rip Out Your Eyes" aria-label="播放 Rip Out Your Eyes" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429984635" hidden><div class="parts"><span>讨论密度<b>12.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>1.7</b></span><span>歌手资历<b>6.1</b></span><span>上榜热<b>10.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="诀别无尽夏pt.2 youzee music"><div class="row"><div class="c-rank">23</div><div class="c-score">52.5</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429949294" target="_blank" rel="noopener">诀别无尽夏pt.2</a></div><div class="sub">Youzee Music · 52.5 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429949294">分数明细</button></div><div class="c-artists artists">Youzee Music</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429949294" data-fee="8" data-name="诀别无尽夏pt.2" aria-label="播放 诀别无尽夏pt.2" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429949294" hidden><div class="parts"><span>讨论密度<b>11.5</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.5</b></span><span>歌手资历<b>8.4</b></span><span>上榜热<b>10.1</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="仙鹿 alyway"><div class="row"><div class="c-rank">24</div><div class="c-score">52.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429769782" target="_blank" rel="noopener">仙鹿</a></div><div class="sub">Alyway · 52.2 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429769782">分数明细</button></div><div class="c-artists artists">Alyway</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429769782" data-fee="8" data-name="仙鹿" aria-label="播放 仙鹿" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429769782" hidden><div class="parts"><span>讨论密度<b>11.4</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>7.7</b></span><span>上榜热<b>10.8</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="24" data-published="1788883200000" data-search="害羞的侵略 曾轶可"><div class="row"><div class="c-rank">25</div><div class="c-score">52.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433398325" target="_blank" rel="noopener">害羞的侵略</a></div><div class="sub">曾轶可 · 52.2 · 发布 2026-09-09</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433398325">分数明细</button></div><div class="c-artists artists">曾轶可</div><div class="c-date">2026-09-09</div><div class="c-play"><button class="play" data-id="3433398325" data-fee="8" data-name="害羞的侵略" aria-label="播放 害羞的侵略" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433398325" hidden><div class="parts"><span>讨论密度<b>19.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>10.3</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="梦特黑 3tsheep/马赫mood"><div class="row"><div class="c-rank">26</div><div class="c-score">52.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429211837" target="_blank" rel="noopener">梦特黑</a></div><div class="sub">3TSheep/马赫mood · 52.0 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429211837">分数明细</button></div><div class="c-artists artists">3TSheep/马赫mood</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429211837" data-fee="8" data-name="梦特黑" aria-label="播放 梦特黑" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429211837" hidden><div class="parts"><span>讨论密度<b>23.2</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>6.6</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="天津之眼 alyway"><div class="row"><div class="c-rank">27</div><div class="c-score">51.5</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429770307" target="_blank" rel="noopener">天津之眼</a></div><div class="sub">Alyway · 51.5 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429770307">分数明细</button></div><div class="c-artists artists">Alyway</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429770307" data-fee="8" data-name="天津之眼" aria-label="播放 天津之眼" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429770307" hidden><div class="parts"><span>讨论密度<b>10.8</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>7.7</b></span><span>上榜热<b>10.8</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="北海道 alyway"><div class="row"><div class="c-rank">28</div><div class="c-score">51.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429769780" target="_blank" rel="noopener">北海道</a></div><div class="sub">Alyway · 51.3 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429769780">分数明细</button></div><div class="c-artists artists">Alyway</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429769780" data-fee="8" data-name="北海道" aria-label="播放 北海道" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429769780" hidden><div class="parts"><span>讨论密度<b>10.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.1</b></span><span>歌手资历<b>7.7</b></span><span>上榜热<b>10.8</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="梦壹 刘哲/连麻swimming"><div class="row"><div class="c-rank">29</div><div class="c-score">51.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429170615" target="_blank" rel="noopener">梦壹</a></div><div class="sub">刘哲/连麻Swimming · 51.1 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429170615">分数明细</button></div><div class="c-artists artists">刘哲/连麻Swimming</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429170615" data-fee="8" data-name="梦壹" aria-label="播放 梦壹" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429170615" hidden><div class="parts"><span>讨论密度<b>23.9</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.6</b></span><span>歌手资历<b>4.5</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:47 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="川久保玲 alyway"><div class="row"><div class="c-rank">30</div><div class="c-score">49.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429769777" target="_blank" rel="noopener">川久保玲</a></div><div class="sub">Alyway · 49.8 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429769777">分数明细</button></div><div class="c-artists artists">Alyway</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429769777" data-fee="8" data-name="川久保玲" aria-label="播放 川久保玲" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429769777" hidden><div class="parts"><span>讨论密度<b>8.9</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.3</b></span><span>歌手资历<b>7.7</b></span><span>上榜热<b>10.8</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="23" data-published="1788969600000" data-search="岸 初音ミク/墨蓝酱油"><div class="row"><div class="c-rank">31</div><div class="c-score">49.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3426532765" target="_blank" rel="noopener">岸</a></div><div class="sub">初音ミク/墨蓝酱油 · 49.7 · 发布 2026-09-10</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3426532765">分数明细</button></div><div class="c-artists artists">初音ミク/墨蓝酱油</div><div class="c-date">2026-09-10</div><div class="c-play"><button class="play" data-id="3426532765" data-fee="0" data-name="岸" aria-label="播放 岸" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3426532765" hidden><div class="parts"><span>讨论密度<b>15.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.1</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:47 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="suicidal alyway"><div class="row"><div class="c-rank">32</div><div class="c-score">49.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429769781" target="_blank" rel="noopener">Suicidal</a></div><div class="sub">Alyway · 49.7 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429769781">分数明细</button></div><div class="c-artists artists">Alyway</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429769781" data-fee="8" data-name="Suicidal" aria-label="播放 Suicidal" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429769781" hidden><div class="parts"><span>讨论密度<b>16.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>1.2</b></span><span>歌手资历<b>7.7</b></span><span>上榜热<b>2.4</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="21" data-published="1789142400000" data-search="第八十难 candyshop/kito/李文/monovisa/vansdaddy/叶轩池"><div class="row"><div class="c-rank">33</div><div class="c-score">49.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433370228" target="_blank" rel="noopener">第八十难</a></div><div class="sub">Candyshop/KITO/李文/Monovisa/Vansdaddy/叶轩池 · 49.6 · 发布 2026-09-12</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433370228">分数明细</button></div><div class="c-artists artists">Candyshop/KITO/李文/Monovisa/Vansdaddy/叶轩池</div><div class="c-date">2026-09-12</div><div class="c-play"><button class="play" data-id="3433370228" data-fee="8" data-name="第八十难" aria-label="播放 第八十难" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433370228" hidden><div class="parts"><span>讨论密度<b>13.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.3</b></span><span>歌手资历<b>5.5</b></span><span>上榜热<b>8.7</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="1" data-age="28" data-published="1788537600000" data-search="boss life (狂放人生) (live) 弹壳danko"><div class="row"><div class="c-rank">34</div><div class="c-score">49.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432120298" target="_blank" rel="noopener">Boss Life (狂放人生) (Live)</a><span class="badge">Live</span></div><div class="sub">弹壳Danko · 49.3 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432120298">分数明细</button></div><div class="c-artists artists">弹壳Danko</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3432120298" data-fee="8" data-name="Boss Life (狂放人生) (Live)" aria-label="播放 Boss Life (狂放人生) (Live)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432120298" hidden><div class="parts"><span>讨论密度<b>18.0</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>1.3</b></span><span>歌手资历<b>9.9</b></span><span>上榜热<b>12.0</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="23" data-published="1788969600000" data-search="你无法拯救我 贺仙人"><div class="row"><div class="c-rank">35</div><div class="c-score">49.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433497775" target="_blank" rel="noopener">你无法拯救我</a></div><div class="sub">贺仙人 · 49.3 · 发布 2026-09-10</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433497775">分数明细</button></div><div class="c-artists artists">贺仙人</div><div class="c-date">2026-09-10</div><div class="c-play"><button class="play" data-id="3433497775" data-fee="8" data-name="你无法拯救我" aria-label="播放 你无法拯救我" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433497775" hidden><div class="parts"><span>讨论密度<b>9.9</b></span><span>平台热度<b>31.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>8.4</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788436905000" data-search="here （radio edit） erguuu"><div class="row"><div class="c-rank">36</div><div class="c-score">49.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431277650" target="_blank" rel="noopener">Here （Radio Edit）</a></div><div class="sub">ErGuuu · 49.1 · 发布 2026-09-03</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431277650">分数明细</button></div><div class="c-artists artists">ErGuuu</div><div class="c-date">2026-09-03</div><div class="c-play"><button class="play" data-id="3431277650" data-fee="8" data-name="Here （Radio Edit）" aria-label="播放 Here （Radio Edit）" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431277650" hidden><div class="parts"><span>讨论密度<b>11.9</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>3.4</b></span><span>歌手资历<b>11.8</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="21" data-published="1789142400000" data-search="戒烟唱歌 candyshop/kito/vansdaddy/叶轩池"><div class="row"><div class="c-rank">37</div><div class="c-score">49.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433370240" target="_blank" rel="noopener">戒烟唱歌</a></div><div class="sub">Candyshop/KITO/Vansdaddy/叶轩池 · 49.0 · 发布 2026-09-12</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433370240">分数明细</button></div><div class="c-artists artists">Candyshop/KITO/Vansdaddy/叶轩池</div><div class="c-date">2026-09-12</div><div class="c-play"><button class="play" data-id="3433370240" data-fee="8" data-name="戒烟唱歌" aria-label="播放 戒烟唱歌" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433370240" hidden><div class="parts"><span>讨论密度<b>12.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>5.5</b></span><span>上榜热<b>8.7</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="21" data-published="1789142400000" data-search="intro candytime candyshop/monovisa/vansdaddy"><div class="row"><div class="c-rank">38</div><div class="c-score">48.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433371184" target="_blank" rel="noopener">intro CANDYTIME</a></div><div class="sub">Candyshop/Monovisa/Vansdaddy · 48.2 · 发布 2026-09-12</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433371184">分数明细</button></div><div class="c-artists artists">Candyshop/Monovisa/Vansdaddy</div><div class="c-date">2026-09-12</div><div class="c-play"><button class="play" data-id="3433371184" data-fee="8" data-name="intro CANDYTIME" aria-label="播放 intro CANDYTIME" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433371184" hidden><div class="parts"><span>讨论密度<b>12.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>5.5</b></span><span>上榜热<b>8.7</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="24" data-published="1788883200000" data-search="close my eyes marshmello/illenium/sacha"><div class="row"><div class="c-rank">39</div><div class="c-score">48.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429623987" target="_blank" rel="noopener">Close My Eyes</a></div><div class="sub">Marshmello/ILLENIUM/SACHA · 48.1 · 发布 2026-09-09</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429623987">分数明细</button></div><div class="c-artists artists">Marshmello/ILLENIUM/SACHA</div><div class="c-date">2026-09-09</div><div class="c-play"><button class="play" data-id="3429623987" data-fee="8" data-name="Close My Eyes" aria-label="播放 Close My Eyes" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429623987" hidden><div class="parts"><span>讨论密度<b>13.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.4</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="28" data-published="1788537600000" data-search="如果某天有人读懂我的安静 陆雨萱 (贝儿)"><div class="row"><div class="c-rank">40</div><div class="c-score">47.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429102380" target="_blank" rel="noopener">如果某天有人读懂我的安静</a></div><div class="sub">陆雨萱 (贝儿) · 47.8 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429102380">分数明细</button></div><div class="c-artists artists">陆雨萱 (贝儿)</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3429102380" data-fee="8" data-name="如果某天有人读懂我的安静" aria-label="播放 如果某天有人读懂我的安静" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429102380" hidden><div class="parts"><span>讨论密度<b>11.9</b></span><span>平台热度<b>31.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>4.9</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:47 UTC</p></div></article>
+<article class="song" data-live="0" data-age="26" data-published="1788710400000" data-search="在这里等你 告五人"><div class="row"><div class="c-rank">41</div><div class="c-score">47.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431003348" target="_blank" rel="noopener">在这里等你</a></div><div class="sub">告五人 · 47.8 · 发布 2026-09-07</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431003348">分数明细</button></div><div class="c-artists artists">告五人</div><div class="c-date">2026-09-07</div><div class="c-play"><button class="play" data-id="3431003348" data-fee="8" data-name="在这里等你" aria-label="播放 在这里等你" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431003348" hidden><div class="parts"><span>讨论密度<b>14.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>1.3</b></span><span>歌手资历<b>9.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="26" data-published="1788710400000" data-search="好きでいて ado"><div class="row"><div class="c-rank">42</div><div class="c-score">47.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432811800" target="_blank" rel="noopener">好きでいて</a></div><div class="sub">Ado · 47.8 · 发布 2026-09-07</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432811800">分数明细</button></div><div class="c-artists artists">Ado</div><div class="c-date">2026-09-07</div><div class="c-play"><button class="play" data-id="3432811800" data-fee="8" data-name="好きでいて" aria-label="播放 好きでいて" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432811800" hidden><div class="parts"><span>讨论密度<b>13.2</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.7</b></span><span>歌手资历<b>11.9</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="21" data-published="1789142400000" data-search="蓝车火 candyshop/李文/vansdaddy"><div class="row"><div class="c-rank">43</div><div class="c-score">47.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433370236" target="_blank" rel="noopener">蓝车火</a></div><div class="sub">Candyshop/李文/Vansdaddy · 47.7 · 发布 2026-09-12</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433370236">分数明细</button></div><div class="c-artists artists">Candyshop/李文/Vansdaddy</div><div class="c-date">2026-09-12</div><div class="c-play"><button class="play" data-id="3433370236" data-fee="8" data-name="蓝车火" aria-label="播放 蓝车火" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433370236" hidden><div class="parts"><span>讨论密度<b>16.5</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>1.3</b></span><span>歌手资历<b>5.5</b></span><span>上榜热<b>2.4</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="冷刺（他们说爱上一个人需要等待） start over"><div class="row"><div class="c-rank">44</div><div class="c-score">47.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431639713" target="_blank" rel="noopener">冷刺（他们说爱上一个人需要等待）</a></div><div class="sub">Start Over · 47.6 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431639713">分数明细</button></div><div class="c-artists artists">Start Over</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431639713" data-fee="8" data-name="冷刺（他们说爱上一个人需要等待）" aria-label="播放 冷刺（他们说爱上一个人需要等待）" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431639713" hidden><div class="parts"><span>讨论密度<b>16.4</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>2.1</b></span><span>歌手资历<b>7.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="入梦·帅 lunekiss/yee/ranzer叶润泽"><div class="row"><div class="c-rank">45</div><div class="c-score">47.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429206961" target="_blank" rel="noopener">入梦·帅</a></div><div class="sub">LuneKiss/Yee/RANZER叶润泽 · 47.3 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429206961">分数明细</button></div><div class="c-artists artists">LuneKiss/Yee/RANZER叶润泽</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429206961" data-fee="8" data-name="入梦·帅" aria-label="播放 入梦·帅" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429206961" hidden><div class="parts"><span>讨论密度<b>23.0</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>2.1</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="自己问自己 某幻君"><div class="row"><div class="c-rank">46</div><div class="c-score">47.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429611351" target="_blank" rel="noopener">自己问自己</a></div><div class="sub">某幻君 · 47.1 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429611351">分数明细</button></div><div class="c-artists artists">某幻君</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429611351" data-fee="8" data-name="自己问自己" aria-label="播放 自己问自己" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429611351" hidden><div class="parts"><span>讨论密度<b>15.9</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.7</b></span><span>歌手资历<b>8.5</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="21" data-published="1789142400000" data-search="月半 黄龄"><div class="row"><div class="c-rank">47</div><div class="c-score">46.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431620775" target="_blank" rel="noopener">月半</a></div><div class="sub">黄龄 · 46.7 · 发布 2026-09-12</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431620775">分数明细</button></div><div class="c-artists artists">黄龄</div><div class="c-date">2026-09-12</div><div class="c-play"><button class="play" data-id="3431620775" data-fee="8" data-name="月半" aria-label="播放 月半" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431620775" hidden><div class="parts"><span>讨论密度<b>13.0</b></span><span>平台热度<b>20.9</b></span><span>评论增速<b>0.8</b></span><span>歌手资历<b>12.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="庄生晓梦 刘教授/翁杰winjay"><div class="row"><div class="c-rank">48</div><div class="c-score">46.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429179468" target="_blank" rel="noopener">庄生晓梦</a></div><div class="sub">刘教授/翁杰Winjay · 46.6 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429179468">分数明细</button></div><div class="c-artists artists">刘教授/翁杰Winjay</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429179468" data-fee="8" data-name="庄生晓梦" aria-label="播放 庄生晓梦" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429179468" hidden><div class="parts"><span>讨论密度<b>21.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.4</b></span><span>歌手资历<b>3.1</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:47 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="假面骑士 4time/荒"><div class="row"><div class="c-rank">49</div><div class="c-score">46.4</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429706245" target="_blank" rel="noopener">假面骑士</a></div><div class="sub">4TIME/荒 · 46.4 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429706245">分数明细</button></div><div class="c-artists artists">4TIME/荒</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429706245" data-fee="8" data-name="假面骑士" aria-label="播放 假面骑士" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429706245" hidden><div class="parts"><span>讨论密度<b>15.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.6</b></span><span>歌手资历<b>8.1</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song" data-live="0" data-age="29" data-published="1788451200000" data-search="nicole kidman adéla"><div class="row"><div class="c-rank">50</div><div class="c-score">46.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431361982" target="_blank" rel="noopener">Nicole Kidman</a></div><div class="sub">ADÉLA · 46.0 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431361982">分数明细</button></div><div class="c-artists artists">ADÉLA</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431361982" data-fee="8" data-name="Nicole Kidman" aria-label="播放 Nicole Kidman" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431361982" hidden><div class="parts"><span>讨论密度<b>12.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>2.3</b></span><span>歌手资历<b>9.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="gass (feat. travis scott) nemzzz/travis scott"><div class="row"><div class="c-rank">51</div><div class="c-score">45.4</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429847515" target="_blank" rel="noopener">GASS (feat. Travis Scott)</a></div><div class="sub">Nemzzz/Travis Scott · 45.4 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429847515">分数明细</button></div><div class="c-artists artists">Nemzzz/Travis Scott</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429847515" data-fee="8" data-name="GASS (feat. Travis Scott)" aria-label="播放 GASS (feat. Travis Scott)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429847515" hidden><div class="parts"><span>讨论密度<b>11.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.8</b></span><span>歌手资历<b>10.9</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="24" data-published="1788883200000" data-search="霓虹邂逅 teamspark_xnd（火星团）"><div class="row"><div class="c-rank">52</div><div class="c-score">45.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433443168" target="_blank" rel="noopener">霓虹邂逅</a><span class="badge vip">VIP</span></div><div class="sub">Teamspark_XND（火星团） · 45.1 · 发布 2026-09-09</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433443168">分数明细</button></div><div class="c-artists artists">Teamspark_XND（火星团）</div><div class="c-date">2026-09-09</div><div class="c-play"><button class="play" data-id="3433443168" data-fee="1" data-name="霓虹邂逅" aria-label="播放 霓虹邂逅" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433443168" hidden><div class="parts"><span>讨论密度<b>11.5</b></span><span>平台热度<b>31.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>2.6</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="28" data-published="1788537600000" data-search="红的+no hook freestyle pt.3 (永不重复第三部) (live) rapeter"><div class="row"><div class="c-rank">53</div><div class="c-score">45.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432123135" target="_blank" rel="noopener">红的+NO HOOK FREESTYLE Pt.3 (永不重复第三部) (Live)</a><span class="badge">Live</span></div><div class="sub">Rapeter · 45.0 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432123135">分数明细</button></div><div class="c-artists artists">Rapeter</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3432123135" data-fee="8" data-name="红的+NO HOOK FREESTYLE Pt.3 (永不重复第三部) (Live)" aria-label="播放 红的+NO HOOK FREESTYLE Pt.3 (永不重复第三部) (Live)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432123135" hidden><div class="parts"><span>讨论密度<b>13.2</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.5</b></span><span>歌手资历<b>9.9</b></span><span>上榜热<b>12.0</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="25" data-published="1788796800000" data-search="琉璃 brian cheng"><div class="row"><div class="c-rank">54</div><div class="c-score">44.9</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3430437609" target="_blank" rel="noopener">琉璃</a></div><div class="sub">Brian Cheng · 44.9 · 发布 2026-09-08</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3430437609">分数明细</button></div><div class="c-artists artists">Brian Cheng</div><div class="c-date">2026-09-08</div><div class="c-play"><button class="play" data-id="3430437609" data-fee="8" data-name="琉璃" aria-label="播放 琉璃" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3430437609" hidden><div class="parts"><span>讨论密度<b>14.0</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.9</b></span><span>歌手资历<b>8.0</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="27" data-published="1788674279000" data-search="夜醉佳人 fladmoile"><div class="row"><div class="c-rank">55</div><div class="c-score">44.9</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432805648" target="_blank" rel="noopener">夜醉佳人</a></div><div class="sub">FLAdMoile · 44.9 · 发布 2026-09-06</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432805648">分数明细</button></div><div class="c-artists artists">FLAdMoile</div><div class="c-date">2026-09-06</div><div class="c-play"><button class="play" data-id="3432805648" data-fee="8" data-name="夜醉佳人" aria-label="播放 夜醉佳人" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432805648" hidden><div class="parts"><span>讨论密度<b>11.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>2.9</b></span><span>歌手资历<b>8.8</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="rolling on, marching on 椅子乐团 the chairs"><div class="row"><div class="c-rank">56</div><div class="c-score">44.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3426583641" target="_blank" rel="noopener">Rolling On, Marching On</a></div><div class="sub">椅子乐团 The Chairs · 44.7 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3426583641">分数明细</button></div><div class="c-artists artists">椅子乐团 The Chairs</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3426583641" data-fee="8" data-name="Rolling On, Marching On" aria-label="播放 Rolling On, Marching On" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3426583641" hidden><div class="parts"><span>讨论密度<b>13.2</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.1</b></span><span>歌手资历<b>9.4</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:47 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="织梦 王腾帅哥/kiv"><div class="row"><div class="c-rank">57</div><div class="c-score">44.7</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429200061" target="_blank" rel="noopener">织梦</a></div><div class="sub">王腾帅哥/KIV · 44.7 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429200061">分数明细</button></div><div class="c-artists artists">王腾帅哥/KIV</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429200061" data-fee="8" data-name="织梦" aria-label="播放 织梦" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429200061" hidden><div class="parts"><span>讨论密度<b>20.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>2.1</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="疯人院1.0 林子/袁顶顶"><div class="row"><div class="c-rank">58</div><div class="c-score">44.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431217911" target="_blank" rel="noopener">疯人院1.0</a></div><div class="sub">林子/袁顶顶 · 44.2 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431217911">分数明细</button></div><div class="c-artists artists">林子/袁顶顶</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431217911" data-fee="8" data-name="疯人院1.0" aria-label="播放 疯人院1.0" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431217911" hidden><div class="parts"><span>讨论密度<b>10.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.6</b></span><span>歌手资历<b>5.0</b></span><span>上榜热<b>6.3</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="28" data-published="1788537600000" data-search="名为你的雨季 moli"><div class="row"><div class="c-rank">59</div><div class="c-score">44.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431881323" target="_blank" rel="noopener">名为你的雨季</a></div><div class="sub">moli · 44.1 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431881323">分数明细</button></div><div class="c-artists artists">moli</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3431881323" data-fee="8" data-name="名为你的雨季" aria-label="播放 名为你的雨季" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431881323" hidden><div class="parts"><span>讨论密度<b>11.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>2.4</b></span><span>歌手资历<b>5.9</b></span><span>上榜热<b>2.4</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="26" data-published="1788710400000" data-search="eastside baddie (acoustic version) zavis"><div class="row"><div class="c-rank">60</div><div class="c-score">43.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431380966" target="_blank" rel="noopener">Eastside BADDIE (Acoustic Version)</a></div><div class="sub">ZAVIS · 43.2 · 发布 2026-09-07</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431380966">分数明细</button></div><div class="c-artists artists">ZAVIS</div><div class="c-date">2026-09-07</div><div class="c-play"><button class="play" data-id="3431380966" data-fee="8" data-name="Eastside BADDIE (Acoustic Version)" aria-label="播放 Eastside BADDIE (Acoustic Version)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431380966" hidden><div class="parts"><span>讨论密度<b>10.9</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.5</b></span><span>歌手资历<b>9.8</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="28" data-published="1788537600000" data-search="不停的 (live) top barry"><div class="row"><div class="c-rank">61</div><div class="c-score">43.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432118003" target="_blank" rel="noopener">不停的 (Live)</a><span class="badge">Live</span></div><div class="sub">Top Barry · 43.2 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432118003">分数明细</button></div><div class="c-artists artists">Top Barry</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3432118003" data-fee="8" data-name="不停的 (Live)" aria-label="播放 不停的 (Live)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432118003" hidden><div class="parts"><span>讨论密度<b>11.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.1</b></span><span>歌手资历<b>10.9</b></span><span>上榜热<b>10.8</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="28" data-published="1788508800000" data-search="云中加冕 iii 3.0 第三章 江上青山jasonyama"><div class="row"><div class="c-rank">62</div><div class="c-score">42.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429707264" target="_blank" rel="noopener">云中加冕 III 3.0 第三章</a></div><div class="sub">江上青山JasonYama · 42.6 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429707264">分数明细</button></div><div class="c-artists artists">江上青山JasonYama</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429707264" data-fee="8" data-name="云中加冕 III 3.0 第三章" aria-label="播放 云中加冕 III 3.0 第三章" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429707264" hidden><div class="parts"><span>讨论密度<b>12.4</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>7.9</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="act like you know ? (feat. muni long) master peace/muni long"><div class="row"><div class="c-rank">63</div><div class="c-score">42.4</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3421035576" target="_blank" rel="noopener">act like you know ? (feat. Muni Long)</a></div><div class="sub">Master Peace/Muni Long · 42.4 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3421035576">分数明细</button></div><div class="c-artists artists">Master Peace/Muni Long</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3421035576" data-fee="8" data-name="act like you know ? (feat. Muni Long)" aria-label="播放 act like you know ? (feat. Muni Long)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3421035576" hidden><div class="parts"><span>讨论密度<b>8.8</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.3</b></span><span>歌手资历<b>11.2</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:46 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="26" data-published="1788710400000" data-search="splendid radiance director/jasr/mking"><div class="row"><div class="c-rank">64</div><div class="c-score">42.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433225075" target="_blank" rel="noopener">Splendid Radiance</a></div><div class="sub">Director/Jasr/Mking · 42.3 · 发布 2026-09-07</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433225075">分数明细</button></div><div class="c-artists artists">Director/Jasr/Mking</div><div class="c-date">2026-09-07</div><div class="c-play"><button class="play" data-id="3433225075" data-fee="8" data-name="Splendid Radiance" aria-label="播放 Splendid Radiance" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433225075" hidden><div class="parts"><span>讨论密度<b>10.7</b></span><span>平台热度<b>19.8</b></span><span>评论增速<b>3.2</b></span><span>歌手资历<b>8.6</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="29" data-published="1788451200000" data-search="侧脸 (live版) 黄霄雲/刘端端"><div class="row"><div class="c-rank">65</div><div class="c-score">42.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431614417" target="_blank" rel="noopener">侧脸 (Live版)</a><span class="badge">Live</span></div><div class="sub">黄霄雲/刘端端 · 42.2 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431614417">分数明细</button></div><div class="c-artists artists">黄霄雲/刘端端</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431614417" data-fee="8" data-name="侧脸 (Live版)" aria-label="播放 侧脸 (Live版)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431614417" hidden><div class="parts"><span>讨论密度<b>8.1</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>11.8</b></span><span>上榜热<b>12.0</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="29" data-published="1788451200000" data-search="失忆 (live版) 李佳薇/庄心妍"><div class="row"><div class="c-rank">66</div><div class="c-score">42.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431614646" target="_blank" rel="noopener">失忆 (Live版)</a><span class="badge">Live</span></div><div class="sub">李佳薇/庄心妍 · 42.0 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431614646">分数明细</button></div><div class="c-artists artists">李佳薇/庄心妍</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431614646" data-fee="8" data-name="失忆 (Live版)" aria-label="播放 失忆 (Live版)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431614646" hidden><div class="parts"><span>讨论密度<b>8.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.5</b></span><span>歌手资历<b>10.9</b></span><span>上榜热<b>11.8</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="27" data-published="1788624000000" data-search="让山为我们作证吧 达桑嘉措"><div class="row"><div class="c-rank">67</div><div class="c-score">41.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3424211705" target="_blank" rel="noopener">让山为我们作证吧</a></div><div class="sub">达桑嘉措 · 41.8 · 发布 2026-09-06</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3424211705">分数明细</button></div><div class="c-artists artists">达桑嘉措</div><div class="c-date">2026-09-06</div><div class="c-play"><button class="play" data-id="3424211705" data-fee="8" data-name="让山为我们作证吧" aria-label="播放 让山为我们作证吧" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3424211705" hidden><div class="parts"><span>讨论密度<b>11.7</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.4</b></span><span>歌手资历<b>7.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:46 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="バーンアウト（燃尽） 稻/柿崎ユウタ/初音ミク"><div class="row"><div class="c-rank">68</div><div class="c-score">41.6</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431673487" target="_blank" rel="noopener">バーンアウト（燃尽）</a></div><div class="sub">稻/柿崎ユウタ/初音ミク · 41.6 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431673487">分数明细</button></div><div class="c-artists artists">稻/柿崎ユウタ/初音ミク</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431673487" data-fee="8" data-name="バーンアウト（燃尽）" aria-label="播放 バーンアウト（燃尽）" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431673487" hidden><div class="parts"><span>讨论密度<b>12.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>2.2</b></span><span>歌手资历<b>4.9</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="26" data-published="1788710400000" data-search="反击(counter attack) cynthia_祁言/buton"><div class="row"><div class="c-rank">69</div><div class="c-score">41.5</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3433427007" target="_blank" rel="noopener">反击(Counter Attack)</a></div><div class="sub">Cynthia_祁言/BUTON · 41.5 · 发布 2026-09-07</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3433427007">分数明细</button></div><div class="c-artists artists">Cynthia_祁言/BUTON</div><div class="c-date">2026-09-07</div><div class="c-play"><button class="play" data-id="3433427007" data-fee="8" data-name="反击(Counter Attack)" aria-label="播放 反击(Counter Attack)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3433427007" hidden><div class="parts"><span>讨论密度<b>14.5</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>2.9</b></span><span>歌手资历<b>2.1</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="24" data-published="1788883200000" data-search="一针一线 贾格juggshots/pank"><div class="row"><div class="c-rank">70</div><div class="c-score">40.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431659858" target="_blank" rel="noopener">一针一线</a></div><div class="sub">贾格JuggShots/Pank · 40.8 · 发布 2026-09-09</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431659858">分数明细</button></div><div class="c-artists artists">贾格JuggShots/Pank</div><div class="c-date">2026-09-09</div><div class="c-play"><button class="play" data-id="3431659858" data-fee="8" data-name="一针一线" aria-label="播放 一针一线" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431659858" hidden><div class="parts"><span>讨论密度<b>7.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.4</b></span><span>歌手资历<b>10.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="21" data-published="1789142400000" data-search="全息恋人 栾一鸣floscar"><div class="row"><div class="c-rank">71</div><div class="c-score">40.1</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432893870" target="_blank" rel="noopener">全息恋人</a></div><div class="sub">栾一鸣Floscar · 40.1 · 发布 2026-09-12</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432893870">分数明细</button></div><div class="c-artists artists">栾一鸣Floscar</div><div class="c-date">2026-09-12</div><div class="c-play"><button class="play" data-id="3432893870" data-fee="8" data-name="全息恋人" aria-label="播放 全息恋人" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432893870" hidden><div class="parts"><span>讨论密度<b>12.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>2.1</b></span><span>歌手资历<b>3.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:49 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="28" data-published="1788537600000" data-search="你的眼神 (live) 张彬彬/王赫野/管健嘉晨"><div class="row"><div class="c-rank">72</div><div class="c-score">39.9</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431707887" target="_blank" rel="noopener">你的眼神 (Live)</a><span class="badge">Live</span></div><div class="sub">张彬彬/王赫野/管健嘉晨 · 39.9 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431707887">分数明细</button></div><div class="c-artists artists">张彬彬/王赫野/管健嘉晨</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3431707887" data-fee="8" data-name="你的眼神 (Live)" aria-label="播放 你的眼神 (Live)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431707887" hidden><div class="parts"><span>讨论密度<b>16.0</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>7.3</b></span><span>上榜热<b>5.6</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="climb on hojean"><div class="row"><div class="c-rank">73</div><div class="c-score">39.0</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3409190641" target="_blank" rel="noopener">Climb On</a></div><div class="sub">Hojean · 39.0 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3409190641">分数明细</button></div><div class="c-artists artists">Hojean</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3409190641" data-fee="8" data-name="Climb On" aria-label="播放 Climb On" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3409190641" hidden><div class="parts"><span>讨论密度<b>8.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.5</b></span><span>歌手资历<b>8.1</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:45 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="28" data-published="1788537600000" data-search="howtodance (摇就完了) (live) yamy郭颖"><div class="row"><div class="c-rank">74</div><div class="c-score">38.4</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432123420" target="_blank" rel="noopener">HowToDance (摇就完了) (Live)</a><span class="badge">Live</span></div><div class="sub">Yamy郭颖 · 38.4 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432123420">分数明细</button></div><div class="c-artists artists">Yamy郭颖</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3432123420" data-fee="8" data-name="HowToDance (摇就完了) (Live)" aria-label="播放 HowToDance (摇就完了) (Live)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432123420" hidden><div class="parts"><span>讨论密度<b>11.8</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.5</b></span><span>歌手资历<b>9.2</b></span><span>上榜热<b>5.6</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="失眠让我们在这座城市相遇 aniface"><div class="row"><div class="c-rank">75</div><div class="c-score">38.3</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431643829" target="_blank" rel="noopener">失眠让我们在这座城市相遇</a></div><div class="sub">AniFace · 38.3 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431643829">分数明细</button></div><div class="c-artists artists">AniFace</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431643829" data-fee="8" data-name="失眠让我们在这座城市相遇" aria-label="播放 失眠让我们在这座城市相遇" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431643829" hidden><div class="parts"><span>讨论密度<b>7.4</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>8.7</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="no time to die ron lopata/billie eilish/finneas o&#x27;connell"><div class="row"><div class="c-rank">76</div><div class="c-score">38.2</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3429676401" target="_blank" rel="noopener">No Time To Die</a></div><div class="sub">Ron Lopata/Billie Eilish/Finneas O&#x27;Connell · 38.2 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3429676401">分数明细</button></div><div class="c-artists artists">Ron Lopata/Billie Eilish/Finneas O&#x27;Connell</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3429676401" data-fee="8" data-name="No Time To Die" aria-label="播放 No Time To Die" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3429676401" hidden><div class="parts"><span>讨论密度<b>6.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.1</b></span><span>歌手资历<b>9.5</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="0" data-age="29" data-published="1788451200000" data-search="solitary vibe dj小西"><div class="row"><div class="c-rank">77</div><div class="c-score">37.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431819241" target="_blank" rel="noopener">Solitary Vibe</a></div><div class="sub">DJ小西 · 37.8 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431819241">分数明细</button></div><div class="c-artists artists">DJ小西</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431819241" data-fee="8" data-name="Solitary Vibe" aria-label="播放 Solitary Vibe" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431819241" hidden><div class="parts"><span>讨论密度<b>8.0</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.0</b></span><span>歌手资历<b>7.8</b></span><span>上榜热<b>0.0</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="29" data-published="1788451200000" data-search="读心术 (live版) 欧阳娜娜/姚晓棠"><div class="row"><div class="c-rank">78</div><div class="c-score">33.8</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3431614397" target="_blank" rel="noopener">读心术 (Live版)</a><span class="badge">Live</span></div><div class="sub">欧阳娜娜/姚晓棠 · 33.8 · 发布 2026-09-04</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3431614397">分数明细</button></div><div class="c-artists artists">欧阳娜娜/姚晓棠</div><div class="c-date">2026-09-04</div><div class="c-play"><button class="play" data-id="3431614397" data-fee="8" data-name="读心术 (Live版)" aria-label="播放 读心术 (Live版)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3431614397" hidden><div class="parts"><span>讨论密度<b>10.6</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>10.5</b></span><span>上榜热<b>0.0</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+<article class="song hidden" data-live="1" data-age="28" data-published="1788537600000" data-search="从前以后pt.1 (live) 盛宇d-shine"><div class="row"><div class="c-rank">79</div><div class="c-score">33.4</div><div class="c-song"><div class="name"><a href="https://music.163.com/song?id=3432121975" target="_blank" rel="noopener">从前以后PT.1 (Live)</a><span class="badge">Live</span></div><div class="sub">盛宇D-SHINE · 33.4 · 发布 2026-09-05</div><button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-3432121975">分数明细</button></div><div class="c-artists artists">盛宇D-SHINE</div><div class="c-date">2026-09-05</div><div class="c-play"><button class="play" data-id="3432121975" data-fee="8" data-name="从前以后PT.1 (Live)" aria-label="播放 从前以后PT.1 (Live)" aria-pressed="false" title="本页播放">▶</button></div></div><div class="detail" id="detail-3432121975" hidden><div class="parts"><span>讨论密度<b>10.3</b></span><span>平台热度<b>22.0</b></span><span>评论增速<b>0.2</b></span><span>歌手资历<b>10.3</b></span><span>上榜热<b>0.0</b></span><span>Live 降权<b>×0.78</b></span></div><p class="data-age">本曲采集：2026-10-03 06:48 UTC</p></div></article>
+  <p id="empty-state" hidden>没有符合条件的歌曲，请调整筛选或搜索条件。</p>
+</div>
+<noscript>启用 JavaScript 可使用搜索、筛选、分数明细和页内试听；歌曲链接仍可直接打开。</noscript>
+<div class="foot">
+  分数 0-100，启发式 heuristic-v2（讨论密度 36% + 平台热度 22% + 评论增速 18% + 歌手资历 12% + 上榜热 12%；Live/翻唱 ×0.78）。
+  点 ▶ 在本页播放，点歌曲行可看分数构成。仅个人研究用途，数据归网易云音乐所有。
+  分数用于研究排序，不代表未来走红概率。项目：<a href="https://github.com/jliushi/ncm-song-scorer">ncm-song-scorer</a>
+</div>
+</div>
+<script type="application/json" id="ranking-config">{"playApi": "https://ncm-scorer-play.2383566697.workers.dev/", "top": 50, "dataAt": 1791010155}</script>
+<script>// Embedded by build_site.py so the published page remains a single static file.
+(() => {
+  const config = JSON.parse(document.getElementById('ranking-config').textContent);
+  const box = document.getElementById('player-box');
+  const player = box.querySelector('audio');
+  const title = box.querySelector('.play-title');
+  const hint = box.querySelector('.play-hint');
+  const official = box.querySelector('.official');
+  let generation = 0, request = null, current = null, timer = null;
+  function stop() {
+    generation++;
+    request?.abort();
+    request = null;
+    clearTimeout(timer);
+    player.onerror = player.onplaying = null;
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+    document.querySelectorAll('button.play').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  }
+  function playSong(button) {
+    stop();
+    const token = generation;
+    const id = button.dataset.id;
+    current = id;
+    box.hidden = false;
+    title.textContent = button.dataset.name || `歌曲 ${id}`;
+    official.href = `https://music.163.com/song?id=${encodeURIComponent(id)}`;
+    button.setAttribute('aria-pressed', 'true');
+    hint.textContent = '正在加载试听…';
+    player.hidden = false;
+    const valid = () => token === generation;
+    const fail = () => {
+      if (!valid()) return;
+      clearTimeout(timer);
+      player.onerror = null;
+      player.pause();
+      player.removeAttribute('src');
+      player.load();
+      player.hidden = true;
+      hint.textContent = '暂时无法页内试听，可能受版权、会员或网络限制。可重试或前往网易云。';
+      document.querySelectorAll('button.play').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    };
+    function audio(url, fallback) {
+      if (!valid()) return;
+      clearTimeout(timer);
+      let finished = false;
+      const onFail = () => {
+        if (!valid() || finished) return;
+        finished = true;
+        clearTimeout(timer);
+        player.onerror = null;
+        fallback();
+      };
+      player.onerror = onFail;
+      player.onplaying = () => {
+        if (!valid()) return;
+        clearTimeout(timer);
+        hint.textContent = '正在试听；完整播放以网易云版权及账号权限为准。';
+      };
+      timer = setTimeout(onFail, 12000);
+      player.src = url;
+      const pending = player.play();
+      pending?.catch(err => {
+        if (!valid()) return;
+        if (err.name === 'NotAllowedError') {
+          clearTimeout(timer);
+          hint.textContent = '浏览器暂停了自动播放，请点播放器的播放按钮。';
+        } else if (err.name !== 'AbortError') onFail();
+      });
+    }
+    async function fallback() {
+      if (!valid()) return;
+      if (!config.playApi) { fail(); return; }
+      hint.textContent = '正在获取备用试听地址…';
+      const controller = new AbortController();
+      request = controller;
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const endpoint = new URL(config.playApi);
+        if (endpoint.protocol !== 'https:') throw new Error('Unsafe endpoint');
+        endpoint.searchParams.set('id', id);
+        const response = await fetch(endpoint, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const url = new URL(result.url);
+        if (url.protocol !== 'https:') throw new Error('Unsafe audio URL');
+        if (valid()) audio(url.href, fail);
+      } catch { if (valid()) fail(); }
+      finally { clearTimeout(timeout); if (request === controller) request = null; }
+    }
+    audio(`https://music.163.com/song/media/outer/url?id=${encodeURIComponent(id)}.mp3`, fallback);
+  }
+  document.querySelectorAll('button.play').forEach(button => button.addEventListener('click', e => {
+    e.stopPropagation();
+    playSong(button);
+  }));
+  box.querySelector('.close-player').addEventListener('click', () => { stop(); current = null; box.hidden = true; });
+  box.querySelector('.retry-player').addEventListener('click', () => {
+    const button = [...document.querySelectorAll('button.play')].find(b => b.dataset.id === current);
+    if (button) playSong(button);
+  });
+  document.querySelectorAll('.song').forEach(song => {
+    const toggle = song.querySelector('.details-toggle');
+    function expand() {
+      const detail = song.querySelector('.detail');
+      detail.hidden = !detail.hidden;
+      toggle.setAttribute('aria-expanded', String(!detail.hidden));
+    }
+    toggle.addEventListener('click', expand);
+    song.addEventListener('click', e => { if (!e.target.closest('a, button, audio')) expand(); });
+  });
+  let period = 30, studio = false;
+  function applyFilters() {
+    const query = document.getElementById('song-search').value.trim().toLocaleLowerCase();
+    let matching = 0, shown = 0;
+    const now = Date.now();
+    document.querySelectorAll('.song').forEach(card => {
+      const published = Number(card.dataset.published);
+      const match = published > 0 && published <= now && now - published <= period * 86400000
+        && (!studio || card.dataset.live !== '1') && card.dataset.search.includes(query);
+      if (match) matching++;
+      const visible = match && shown < config.top;
+      card.classList.toggle('hidden', !visible);
+      if (visible) {
+        shown++;
+        card.querySelector('.c-rank').textContent = shown;
+        card.classList.toggle('top3', shown <= 3);
+      } else {
+        card.querySelector('.detail').hidden = true;
+        card.querySelector('.details-toggle').setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.getElementById('result-count').textContent = `显示 ${shown} 首，共匹配 ${matching} 首`;
+    document.getElementById('empty-state').hidden = shown > 0;
+  }
+  document.querySelectorAll('#filters button').forEach(button => button.addEventListener('click', () => {
+    const group = button.closest('.filter-group');
+    group.querySelectorAll('button').forEach(b => { b.classList.toggle('on', b === button); b.setAttribute('aria-pressed', String(b === button)); });
+    if (button.dataset.time) period = button.dataset.time === 'week' ? 7 : 30;
+    if (button.dataset.live) studio = button.dataset.live === 'studio';
+    applyFilters();
+  }));
+  document.getElementById('song-search').addEventListener('input', applyFilters);
+  const fresh = document.getElementById('freshness');
+  if (!config.dataAt || Date.now() - config.dataAt * 1000 > 48 * 3600000) {
+    fresh.hidden = false;
+    fresh.textContent = config.dataAt ? '数据已超过 48 小时未更新，当前展示上次采集结果。' : '暂无有效采集时间，请稍后查看更新。';
+  }
+  applyFilters();
+})();
+</script>
+<script type="application/ld+json">{"name": "ncm-scorer ranking", "updated": "2026-10-03 06:49 UTC", "top1": "SKYFALL"}</script>
+</body>
+</html>
