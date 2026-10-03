@@ -24,11 +24,12 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: cors() });
     }
+    if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405);
     const id = (new URL(request.url).searchParams.get("id") || "").trim();
     if (!id) {
       return json({ ok: true, hint: "GET ?id=歌曲数字id" });
     }
-    if (!/^\d{1,20}$/.test(id)) {
+    if (!/^[1-9]\d{0,15}$/.test(id) || !Number.isSafeInteger(Number(id))) {
       return json({ error: "bad id" }, 400);
     }
     const api =
@@ -37,7 +38,9 @@ export default {
       "&ids=[" +
       id +
       "]&br=128000";
+    try {
     const resp = await fetch(api, {
+      signal: AbortSignal.timeout(8000),
       headers: {
         "User-Agent": UA,
         Referer: "https://music.163.com",
@@ -53,11 +56,19 @@ export default {
     if (url && url.indexOf("http://") === 0) {
       url = "https://" + url.slice(7);
     }
+    if (url) {
+      try { if (new URL(url).protocol !== 'https:') url = null; }
+      catch { url = null; }
+    }
     return json({
       id: Number(id),
       url,
       br: item.br || null,
       fee: item.fee == null ? null : item.fee,
     });
+    } catch (error) {
+      const timeout = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+      return json({ id: Number(id), url: null, error: timeout ? 'upstream timeout' : 'upstream unavailable' }, timeout ? 504 : 502);
+    }
   },
 };

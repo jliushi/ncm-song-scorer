@@ -82,15 +82,16 @@ class Store:
         exists = cur.fetchone() is not None
         if exists:
             self.conn.execute(
-                """UPDATE songs SET name=?, artists=?, artist_ids=?, album=?,
-                       publish_time=COALESCE(?, publish_time), duration_ms=?,
+                """UPDATE songs SET name=COALESCE(?, name), artists=COALESCE(?, artists),
+                       artist_ids=COALESCE(?, artist_ids), album=COALESCE(?, album),
+                       publish_time=COALESCE(?, publish_time), duration_ms=COALESCE(?, duration_ms),
                        pop=COALESCE(?, pop),
                        artist_album_size=COALESCE(?, artist_album_size),
                        artist_music_size=COALESCE(?, artist_music_size),
                        fee=COALESCE(?, fee)
                    WHERE song_id=?""",
                 (row.get("name"), row.get("artists"),
-                 json.dumps(row.get("artist_ids") or []), row.get("album"),
+                 json.dumps(row["artist_ids"]) if row.get("artist_ids") is not None else None, row.get("album"),
                  row.get("publish_time"), row.get("duration_ms"),
                  row.get("pop"), row.get("artist_album_size"),
                  row.get("artist_music_size"), row.get("fee"),
@@ -265,22 +266,30 @@ class Store:
         self.conn.commit()
 
     def latest_scores(self, model_version: Optional[str] = None,
-                      limit: int = 50) -> List[Dict[str, Any]]:
+                      limit: Optional[int] = 50, max_age_days: Optional[float] = None,
+                      now: Optional[float] = None) -> List[Dict[str, Any]]:
+        as_of = time.time() if now is None else now
+        filters = ""
+        filter_args = []
+        if max_age_days is not None:
+            filters = "WHERE g.publish_time BETWEEN ? AND ? "
+            filter_args = [int((as_of - max_age_days * 86400) * 1000), int(as_of * 1000)]
         q = (
             "SELECT s.song_id, s.score, s.ts, s.detail, g.name, g.artists, "
-            "g.publish_time, g.fee "
+            "g.publish_time, g.fee, (SELECT MAX(p.ts) FROM snapshots p "
+            "WHERE p.song_id=s.song_id AND p.comments_total IS NOT NULL AND p.ts<=s.ts) AS data_ts "
             "FROM scores s JOIN (SELECT song_id, MAX(ts) AS mts FROM scores "
             "{mv} GROUP BY song_id) x ON s.song_id=x.song_id AND s.ts=x.mts "
             "{mvo} JOIN songs g ON g.song_id=s.song_id "
-            "ORDER BY s.score DESC LIMIT ?"
+            "{filters} ORDER BY s.score DESC, s.song_id ASC LIMIT ?"
         )
         if model_version:
             mv = "WHERE model_version=?"
             mvo = "AND s.model_version=?"
-            args: Iterable[Any] = (model_version, model_version, limit)
+            args: Iterable[Any] = (model_version, model_version, *filter_args, -1 if limit is None else limit)
         else:
             mv = ""
             mvo = ""
-            args = (limit,)
-        cur = self.conn.execute(q.format(mv=mv, mvo=mvo), tuple(args))
+            args = (*filter_args, -1 if limit is None else limit)
+        cur = self.conn.execute(q.format(mv=mv, mvo=mvo, filters=filters), tuple(args))
         return [dict(r) for r in cur.fetchall()]

@@ -2,6 +2,9 @@ name: daily-collect
 
 on:
   workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ['scripts/**', 'ncm_scorer/**', '.github/workflows/daily.yml']
   schedule:
     # UTC 01:30 = 北京时间 09:30（避开整点调度高峰；Actions cron 允许数分钟级延迟）
     - cron: "30 1 * * *"
@@ -29,7 +32,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install deps
-        run: pip install requests
+        run: pip install -r requirements.txt
+
+      - name: Verify offline behavior
+        run: python -m unittest discover -s tests -q
 
       - name: Restore database
         run: |
@@ -38,6 +44,9 @@ jobs:
             if [ -f data_repo/ncm_scorer.db ]; then
               cp data_repo/ncm_scorer.db .
               echo "restored db: $(du -h ncm_scorer.db | cut -f1)"
+            else
+              echo "::error::数据库缺失；停止运行，避免用空库替换历史数据"
+              exit 1
             fi
             # 已训练的模型（若 train workflow 产出过）一并恢复，用于每日 ML 打分
             if [ -f data_repo/model.pkl ]; then
@@ -45,12 +54,16 @@ jobs:
               echo "restored model"
             fi
           else
-            echo "data repo not reachable, starting fresh"
-            mkdir -p data_repo
+            echo "::error::无法恢复历史数据库；保留上次发布结果"
+            exit 1
           fi
 
       - name: Run daily collection
+        if: github.event_name != 'push'
         run: python scripts/daily.py
+
+      - name: Build ranking page
+        run: python scripts/build_site.py --db ncm_scorer.db --out site/index.html --top 50
 
       - name: Write ranking to job summary
         run: |
@@ -62,18 +75,15 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Persist database
+        if: github.event_name != 'push'
         run: |
           set -e
           cd data_repo
-          if [ ! -d .git ]; then
-            git init -b main
-            git remote add origin "https://x-access-token:${DATA_TOKEN}@github.com/${DATA_REPO}.git"
-          fi
           cp ../ncm_scorer.db .
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ncm_scorer.db
-          git commit -m "daily snapshot $(date -u +%F)" || echo "no changes"
+          if ! git diff --cached --quiet; then git commit -m "daily snapshot $(date -u +%F)"; fi
           git push -u origin main
 
       - name: Publish ranking site to gh-pages
@@ -81,7 +91,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          python scripts/build_site.py --db ncm_scorer.db --out site/index.html --top 50 --play-api "${PLAY_API:-https://ncm-scorer-play.2383566697.workers.dev/}"
           cd site
           git init -q -b gh-pages
           git config user.name "github-actions[bot]"

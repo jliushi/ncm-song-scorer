@@ -69,10 +69,7 @@ def _first_day_features(store, song_id: int) -> Optional[Dict[str, float]]:
     # 以首次快照时刻为 now 重建特征（增速恒为 0，属正常）
     feats = build_features(store, song_id, now=float(first["ts"]))
     feats["comments_total_log"] = _log1p(first["comments_total"])
-    feats["early_density_log"] = _log1p(
-        (first["comments_total"] or 0)
-        / max(_age_hours_at(song.get("publish_time"), first["ts"]), 1.0)
-    )
+    # build_features already uses the first snapshot and density per day.
     return feats
 
 
@@ -104,9 +101,10 @@ def train(store, horizon_days: float = 14.0, model_path: str = "model.pkl"
         sid_kept.append(sid)
 
     n_pos = sum(y)
-    if len(y) < 40 or n_pos < 10:
+    n_negative = len(y) - n_pos
+    if len(y) < 40 or n_pos < 10 or n_negative < 10:
         raise ModelNotReady(
-            f"样本不足：总 {len(y)} 首 / 正样本 {n_pos} 首（需 >=40/10）。"
+            f"样本不足：总 {len(y)} 首 / 正样本 {n_pos} 首 / 负样本 {n_negative} 首（需 >=40/10/10）。"
             "继续每日运行 daily.py 攒 2-3 周数据后再训练。"
         )
 
@@ -133,6 +131,7 @@ def train(store, horizon_days: float = 14.0, model_path: str = "model.pkl"
         "feature_names": FEATURE_NAMES,
         "n_samples": len(y),
         "n_positive": n_pos,
+        "n_negative": n_negative,
         "auc": None if auc != auc else round(auc, 4),
         "horizon_days": horizon_days,
         "trained_at": int(time.time()),

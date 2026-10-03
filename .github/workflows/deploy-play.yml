@@ -3,6 +3,7 @@ name: deploy-play-worker
 on:
   workflow_dispatch: {}
   push:
+    branches: [main]
     paths:
       - "workers/play.js"
       - "wrangler.toml"
@@ -13,15 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/worker.test.mjs
 
       - name: Deploy play worker (skip when no Cloudflare token)
         env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [ -z "$CF_TOKEN" ]; then
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
             echo "::notice::未配置 CLOUDFLARE_API_TOKEN secret，跳过 Worker 部署（播放走官网外链兜底）"
             exit 0
           fi
-          npx --yes wrangler@latest deploy \
-            ${CF_ACCOUNT_ID:+--account-id "$CF_ACCOUNT_ID"}
+          npx --yes wrangler@4.147.0 deploy

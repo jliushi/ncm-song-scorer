@@ -219,7 +219,12 @@ class NcmClient:
             data = self._get(
                 f"/v1/resource/comments/R_SO_4_{song_id}", {"limit": 1, "offset": 0}
             )
-            return int(data.get("total") or 0)
+            total = data.get('total')
+            # Missing/invalid totals are failures, not real zero-comment snapshots.
+            if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+                log.warning('comments_total(%s): missing or invalid total', song_id)
+                return None
+            return total
         except NcmApiError as e:
             log.warning("comments_total(%s) failed: %s", song_id, e)
             return None

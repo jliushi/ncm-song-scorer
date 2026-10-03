@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -32,6 +33,8 @@ TEMPLATE = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ncm-scorer · 网易云新歌爆款潜力榜</title>
+<meta name="description" content="每日采集的新歌研究榜，提供评分构成、发行筛选、歌曲搜索和官方试听入口。">
+<link rel="icon" href="data:,">
 <style>
   :root {{
     color-scheme: dark;
@@ -45,6 +48,7 @@ TEMPLATE = """<!DOCTYPE html>
     --vip: #f0a14a;
   }}
   * {{ box-sizing: border-box; }}
+  [hidden] {{ display: none !important; }}
   body {{
     margin: 0;
     min-height: 100vh;
@@ -218,6 +222,15 @@ TEMPLATE = """<!DOCTYPE html>
     max-width: 68ch;
   }}
   a {{ color: #ff7a7a; }}
+  button, input {{ font: inherit; }}
+  button:focus-visible, a:focus-visible, input:focus-visible {{ outline: 2px solid var(--gold); outline-offset: 3px; }}
+  .search {{ display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }}
+  .search input {{ flex: 1 1 220px; min-width: 0; max-width: 440px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }}
+  #result-count, .data-age {{ font-size: 12px; color: var(--muted); }}
+  #freshness, #empty-state {{ padding: 14px; color: var(--gold); }}
+  .details-toggle, .close-player, .retry-player {{ border: 1px solid var(--line); background: #252529; color: var(--ink); border-radius: 6px; padding: 5px 8px; cursor: pointer; }}
+  .details-toggle {{ font-size: 11px; margin-top: 4px; }}
+  .player-actions {{ display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 10px; }}
   @media (max-width: 760px) {{
     .wrap {{ width: min(100% - 18px, 980px); padding-top: 20px; }}
     .hero {{ display: block; }}
@@ -235,118 +248,51 @@ TEMPLATE = """<!DOCTYPE html>
 <body>
 <div class="wrap">
 <header class="hero">
+  <div>
   <p class="kicker">ncm-scorer</p>
   <h1>新歌爆款潜力榜</h1>
-  <p class="meta">更新于 {updated} · {model} · 数据来自网易云音乐新歌榜（近 30 天发行），每日自动更新</p>
+  </div>
+  <p class="meta">采集更新于 {updated} · {model} · 数据来自网易云音乐新歌榜及歌手近作（近 30 天发行），每日自动采集</p>
 </header>
+<p id="freshness" role="status" {freshness_hidden}>{freshness}</p>
 <div class="toolbar" id="filters">
   <div class="filter-group" data-group="time">
     <span class="filter-label">发行</span>
     <div class="filters">
-      <button type="button" data-time="month" class="on">近 30 天</button>
-      <button type="button" data-time="week">近 7 天</button>
+      <button type="button" data-time="month" class="on" aria-pressed="true">近 30 天</button>
+      <button type="button" data-time="week" aria-pressed="false">近 7 天</button>
     </div>
   </div>
   <div class="filter-group" data-group="live">
     <span class="filter-label">类型</span>
     <div class="filters">
-      <button type="button" data-live="all" class="on">含 Live</button>
-      <button type="button" data-live="studio">不含 Live</button>
+      <button type="button" data-live="all" class="on" aria-pressed="true">含 Live</button>
+      <button type="button" data-live="studio" aria-pressed="false">不含 Live</button>
     </div>
   </div>
 </div>
-<div id="player-box" hidden></div>
+<div class="search"><label for="song-search">搜索歌曲 / 歌手</label><input id="song-search" type="search" placeholder="输入歌名或歌手" autocomplete="off"><span id="result-count" role="status"></span></div>
+<div id="player-box" hidden>
+  <div class="play-title"></div><audio controls preload="metadata"></audio>
+  <div class="play-hint" role="status"></div>
+  <div class="player-actions"><button type="button" class="retry-player">重试</button><a class="official" target="_blank" rel="noopener noreferrer">前往网易云</a><button type="button" class="close-player">关闭试听</button></div>
+</div>
 <div class="board">
   <div class="board-head">
     <span>#</span><span>分数</span><span>歌曲</span><span>歌手</span><span>发布</span><span></span>
   </div>
   {rows}
+  <p id="empty-state" {empty_hidden}>没有符合条件的歌曲，请调整筛选或搜索条件。</p>
 </div>
+<noscript>启用 JavaScript 可使用搜索、筛选、分数明细和页内试听；歌曲链接仍可直接打开。</noscript>
 <div class="foot">
   {foot}
   点 ▶ 在本页播放，点歌曲行可看分数构成。仅个人研究用途，数据归网易云音乐所有。
-  项目：<a href="https://github.com/jiangliushi666/ncm-song-scorer">ncm-song-scorer</a>
+  分数用于研究排序，不代表未来走红概率。项目：<a href="https://github.com/jliushi/ncm-song-scorer">ncm-song-scorer</a>
 </div>
 </div>
-<script>
-  var box = document.getElementById('player-box');
-  var current = null;
-  var PLAY_API = {play_api};
-  function fail(name, id) {{
-    box.innerHTML = '<div class="play-title"></div><div class="play-hint">这首没有页内试听地址。</div>';
-    box.querySelector('.play-title').textContent = name || ('歌曲 ' + id);
-  }}
-  function showAudio(url, name, id, onFail) {{
-    box.innerHTML = '<div class="play-title"></div><audio controls autoplay preload="auto"></audio>';
-    box.querySelector('.play-title').textContent = name || ('歌曲 ' + id);
-    var a = box.querySelector('audio');
-    a.src = url;
-    a.onerror = function () {{ if (onFail) onFail(); }};
-  }}
-  function playSong(id, name) {{
-    box.hidden = false;
-    box.innerHTML = '<div class="play-title"></div><div class="play-hint">正在取播放地址…</div>';
-    box.querySelector('.play-title').textContent = name || ('歌曲 ' + id);
-    var outer = 'https://music.163.com/song/media/outer/url?id=' + id + '.mp3';
-    showAudio(outer, name, id, function () {{
-      if (!PLAY_API) {{ fail(name, id); return; }}
-      fetch(PLAY_API + (PLAY_API.indexOf('?') >= 0 ? '&' : '?') + 'id=' + id)
-        .then(function (r) {{ return r.json(); }})
-        .then(function (j) {{
-          if (j && j.url) showAudio(j.url, name, id, function () {{ fail(name, id); }});
-          else fail(name, id);
-        }})
-        .catch(function () {{ fail(name, id); }});
-    }});
-    box.scrollIntoView({{ behavior: 'smooth', block: 'nearest' }});
-  }}
-  document.addEventListener('click', function (e) {{
-    var btn = e.target.closest('button.play');
-    if (btn) {{
-      e.stopPropagation();
-      var id = btn.getAttribute('data-id');
-      if (current === id) {{ box.hidden = !box.hidden; return; }}
-      current = id;
-      playSong(id, btn.getAttribute('data-name') || '');
-      return;
-    }}
-    if (e.target.closest('a')) return;
-    var song = e.target.closest('.song');
-    if (!song) return;
-    var detail = song.querySelector('.detail');
-    if (detail) detail.hidden = !detail.hidden;
-  }});
-  var timeFilter = 'month';
-  var liveFilter = 'all';
-  function applyFilters() {{
-    Array.prototype.forEach.call(document.querySelectorAll('.song'), function (card) {{
-      var live = card.getAttribute('data-live') === '1';
-      var age = Number(card.getAttribute('data-age') || 999);
-      var hide = (timeFilter === 'week' && age > 7) || (timeFilter === 'month' && age > 30) || (liveFilter === 'studio' && live);
-      card.classList.toggle('hidden', hide);
-      var d = card.querySelector('.detail');
-      if (d && hide) d.hidden = true;
-    }});
-  }}
-  document.getElementById('filters').addEventListener('click', function (e) {{
-    var timeBtn = e.target.closest('button[data-time]');
-    var liveBtn = e.target.closest('button[data-live]');
-    if (timeBtn) {{
-      timeFilter = timeBtn.getAttribute('data-time');
-      Array.prototype.forEach.call(document.querySelectorAll('button[data-time]'), function (x) {{
-        x.classList.toggle('on', x === timeBtn);
-      }});
-    }} else if (liveBtn) {{
-      liveFilter = liveBtn.getAttribute('data-live');
-      Array.prototype.forEach.call(document.querySelectorAll('button[data-live]'), function (x) {{
-        x.classList.toggle('on', x === liveBtn);
-      }});
-    }} else {{
-      return;
-    }}
-    applyFilters();
-  }});
-</script>
+<script type="application/json" id="ranking-config">{config}</script>
+<script>{client_script}</script>
 <script type="application/ld+json">{ldjson}</script>
 </body>
 </html>
@@ -377,20 +323,27 @@ def _parse_detail(raw) -> dict:
         return {}
 
 
-def _pick_rows(store: Store, top_n: int):
+def _pick_rows(store: Store, top_n: int, now=None):
+    now = time.time() if now is None else now
+    # Include every eligible candidate; each filter applies its own Top N in the browser.
+    heuristic = store.latest_scores('heuristic-v2', limit=None, max_age_days=30, now=now)
     choices = (
-        ("gbc-v1", "ML 模型 gbc-v1（新歌榜前 20 概率）",
-         "分数 0-100，机器学习模型 gbc-v1（标签 = 新歌榜最佳名次 ≤ 20）。"),
+        ("gbc-v1", "ML 模型 gbc-v1（历史前 20 分类得分）",
+         "分数 0-100，机器学习模型 gbc-v1（标签 = 历史新歌榜最佳名次 ≤ 20，未经前瞻校准）。"),
         ("heuristic-v2", "启发式 heuristic-v2（Live 降权 + 歌手上榜热）",
          "分数 0-100，启发式 heuristic-v2（讨论密度 36% + 平台热度 22% + 评论增速 18% + 歌手资历 12% + 上榜热 12%；Live/翻唱 ×0.78）。"),
         ("heuristic-v1", "启发式 heuristic-v1（未训练，冷启动基线）",
          "分数 0-100，启发式模型 heuristic-v1（讨论密度 40% + 平台热度 25% + 评论增速 20% + 歌手资历 15%）。"),
     )
     for version, label, foot in choices:
-        rows = store.latest_scores(model_version=version, limit=top_n)
+        rows = heuristic if version == 'heuristic-v2' else store.latest_scores(model_version=version, limit=None, max_age_days=30, now=now)
+        if version == 'gbc-v1' and heuristic:
+            by_id = {r['song_id']: r for r in rows}
+            if not all(r['song_id'] in by_id and by_id[r['song_id']]['ts'] >= r['ts'] - 3600 for r in heuristic):
+                continue  # Incomplete or stale ML output must not hide current heuristic candidates.
         if rows:
             return rows, label, foot
-    return [], "", "数据库中还没有打分记录。"
+    return [], "暂无符合发行窗口的评分", "当前没有近 30 天发行且有评分记录的歌曲。"
 
 
 DEFAULT_PLAY_API = "https://ncm-scorer-play.2383566697.workers.dev/"
@@ -398,13 +351,15 @@ DEFAULT_PLAY_API = "https://ncm-scorer-play.2383566697.workers.dev/"
 
 def build(db_path: str, out_path: str, top_n: int = 50,
           play_api: str = DEFAULT_PLAY_API) -> int:
+    if top_n < 1:
+        raise ValueError('top must be positive')
+    if not os.path.isfile(db_path):
+        raise ValueError('数据库文件不存在，先运行 daily')
     store = Store(db_path)
     try:
         rows, model_label, foot = _pick_rows(store, top_n)
     finally:
         store.close()
-    if not rows:
-        raise SystemExit("数据库中还没有打分记录，先运行 daily")
 
     cards = []
     for i, r in enumerate(rows, start=1):
@@ -425,10 +380,12 @@ def build(db_path: str, out_path: str, top_n: int = 50,
             badges.append('<span class="badge vip">VIP</span>')
         badge = "".join(badges)
         cls = "song top3" if i <= 3 else "song"
+        if i > top_n:
+            cls += ' hidden'
         play_btn = (
             f'<button class="play" data-id="{song_id}" data-fee="{int(fee or 0)}" '
             f'data-name="{html.escape(name)}" '
-            f'aria-label="播放 {html.escape(name)}" title="本页播放">▶</button>'
+            f'aria-label="播放 {html.escape(name)}" aria-pressed="false" title="本页播放">▶</button>'
         )
         detail = _parse_detail(r.get("detail"))
         parts = []
@@ -439,32 +396,42 @@ def build(db_path: str, out_path: str, top_n: int = 50,
             parts.append(f"<span>Live 降权<b>×{detail.get('live_penalty', 0.78)}</b></span>")
         parts_html = "".join(parts) or "<span>暂无分项明细</span>"
         cards.append(
-            f'<article class="{cls}" data-live="{1 if is_live else 0}" data-age="{age}">'
+            f'<article class="{cls}" data-live="{1 if is_live else 0}" data-age="{age}" '
+            f'data-published="{int(r.get("publish_time") or 0)}" data-search="{html.escape((name + " " + str(r.get("artists") or "")).lower())}">'
             f'<div class="row">'
             f'<div class="c-rank">{i}</div>'
             f'<div class="c-score">{score:.1f}</div>'
             f'<div class="c-song"><div class="name">'
             f'<a href="https://music.163.com/song?id={song_id}" target="_blank" '
             f'rel="noopener">{html.escape(name)}</a>{badge}</div>'
-            f'<div class="sub">{artists} · {score:.1f} · 发布 {published}</div></div>'
+            f'<div class="sub">{artists} · {score:.1f} · 发布 {published}</div>'
+            f'<button class="details-toggle" type="button" aria-expanded="false" aria-controls="detail-{song_id}">分数明细</button></div>'
             f'<div class="c-artists artists">{artists}</div>'
             f'<div class="c-date">{published}</div>'
             f'<div class="c-play">{play_btn}</div>'
             f'</div>'
-            f'<div class="detail" hidden><div class="parts">{parts_html}</div></div>'
+            f'<div class="detail" id="detail-{song_id}" hidden><div class="parts">{parts_html}</div>'
+            f'<p class="data-age">本曲采集：{time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(r["data_ts"])) if r.get("data_ts") else "未知"}</p></div>'
             f'</article>'
         )
-    updated = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+    data_at = max((r.get('data_ts') or 0 for r in rows), default=0)
+    updated = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(data_at)) if data_at else '未知'
+    stale = not data_at or time.time() - data_at > 48 * 3600
+    def safe_json(value):
+        return json.dumps(value, ensure_ascii=False).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
     page = TEMPLATE.format(
         updated=updated,
         model=html.escape(model_label),
-        play_api=json.dumps(play_api or ""),
+        config=safe_json({'playApi': play_api or '', 'top': top_n, 'dataAt': data_at}),
+        client_script=Path(__file__).with_name('ranking.js').read_text(encoding='utf-8'),
+        freshness_hidden='' if stale else 'hidden',
+        freshness='数据已超过 48 小时未更新，当前展示上次采集结果。' if data_at else '暂无有效采集时间，请稍后查看更新。',
+        empty_hidden='hidden' if rows else '',
         rows="\n".join(cards),
         foot=foot,
-        ldjson=json.dumps(
+        ldjson=safe_json(
             {"name": "ncm-scorer ranking", "updated": updated,
-             "top1": rows[0].get("name")},
-            ensure_ascii=False,
+             "top1": rows[0].get("name") if rows else None},
         ),
     )
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)

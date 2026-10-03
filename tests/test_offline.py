@@ -295,25 +295,14 @@ class TestSiteBuilder(unittest.TestCase):
         store.close()
         out = os.path.join(tempfile.mkdtemp(), "index.html")
         build(db, out, top_n=10)
-        page = open(out, encoding="utf-8").read()
-        self.assertIn(">发布</span>", page)
-        self.assertIn("近 30 天", page)
-        self.assertIn("近 7 天", page)
-        self.assertIn("不含 Live", page)
-        self.assertIn('data-time="month"', page)
-        self.assertIn('data-time="week"', page)
-        self.assertIn('data-live="studio"', page)
-        self.assertIn("旧曲 (Live)", page)
-        self.assertIn("原创新歌", page)
-        self.assertIn("<article", page)
-        self.assertIn('class="badge">Live</span>', page)
-        self.assertEqual(page.count('class="badge vip">VIP</span>'), 1)
-        self.assertIn("PLAY_API", page)
-        self.assertIn("playSong", page)
-        self.assertIn("<audio", page)
-        self.assertIn("song/media/outer/url", page)
-        self.assertIn("讨论密度", page)
-        self.assertIn("heuristic-v2", page)
+        from test_quality import RankingDocument
+        from pathlib import Path
+        page = RankingDocument(Path(out).read_text(encoding="utf-8"))
+        self.assertEqual(len(page.articles), 2)
+        self.assertEqual([r["data-live"] for r in page.articles], ["0", "1"])
+        self.assertEqual(page.config["top"], 10)
+        self.assertGreater(page.config["dataAt"], 0)
+
 
 
 if __name__ == "__main__":

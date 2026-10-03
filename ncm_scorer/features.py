@@ -57,8 +57,9 @@ def build_features(store: Store, song_id: int,
     song = store.get_song(song_id)
     if song is None:
         raise KeyError(f"song {song_id} not in store")
-    snaps = store.snapshots(song_id)
-    now = now or time.time()
+    historical = now is not None
+    now = time.time() if now is None else now
+    snaps = [s for s in store.snapshots(song_id) if s['ts'] <= now]
 
     age_h = _age_hours(song.get("publish_time"), now)
     latest = snaps[-1] if snaps else None
@@ -89,7 +90,7 @@ def build_features(store: Store, song_id: int,
 
     flags = title_flags(song.get("name"))
     return {
-        "pop": float(song.get("pop") or 0.0),
+        "pop": float(((latest or {}).get("pop") if historical else song.get("pop")) or 0.0),
         "artist_scale": math.log1p(
             int(song.get("artist_album_size") or 0) + int(song.get("artist_music_size") or 0)
         ),

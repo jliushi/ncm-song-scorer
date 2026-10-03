@@ -33,7 +33,7 @@ jobs:
         run: |
           set -e
           python -m ncm_scorer train || {
-            echo "::notice::样本仍不足（需总样本>=40 且正样本>=10），继续每日采集后重试"
+            echo "::notice::训练未完成；检查上方错误。至少需要总样本>=40，正负样本各>=10"
             exit 1
           }
           cat model.pkl.meta.json >> "$GITHUB_STEP_SUMMARY"

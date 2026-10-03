@@ -38,6 +38,8 @@ def fetch_chart_and_discover(client: NcmClient, store: Store,
                              chart_id: int = CHART_NEW_SONG) -> Dict[str, int]:
     """拉榜单 -> 记录榜单快照 -> 新面孔入库. 返回 {charted, new_songs}."""
     tracks = client.chart_tracks(chart_id)
+    if not tracks:
+        raise RuntimeError('新歌榜返回空数据，本次停止采集并保留上次发布结果。')
     new_count = 0
     for t in tracks:
         store.record_chart(chart_id, t["song_id"], t["rank"])
@@ -180,10 +182,15 @@ def take_snapshots(client: NcmClient, store: Store,
     """对指定歌曲拍快照（评论总数 + 最新 pop）."""
     ok = fail = 0
     for sid in song_ids:
-        total = client.comments_total(sid)
+        try:
+            total = client.comments_total(sid)
+        except Exception as exc:
+            log.warning('comments(%s) failed: %s', sid, exc)
+            fail += 1
+            continue
         song = store.get_song(sid)
         pop = (song or {}).get("pop")
-        if total is None and pop is None:
+        if total is None:
             fail += 1
             continue
         store.add_snapshot(sid, comments_total=total, pop=pop)
@@ -284,8 +291,12 @@ def run_daily(client: NcmClient, store: Store,
     if need_enrich:
         stats.update(enrich_songs(client, store, need_enrich[:max_tracked]))
     ids = store.tracked_song_ids(max_age_days=DEFAULT_NEW_SONG_WINDOW_DAYS)[:max_tracked]
+    snapshot_start = int(time.time())
     stats.update(take_snapshots(client, store, ids))
-    scored = score_all(store, ids)
+    if not stats['ok']:
+        raise RuntimeError('本次未采集到有效评论快照，停止打分和发布，保留上次结果。')
+    current_ids = [sid for sid in ids if (store.last_snapshot(sid) or {}).get('ts', 0) >= snapshot_start]
+    scored = score_all(store, current_ids)
     stats["scored"] = len(scored)
     stats["top5"] = [
         {"name": r["name"], "artists": r["artists"], "score": r["score"]}
